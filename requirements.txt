@@ -1,0 +1,24 @@
+# Core
+python-dotenv>=1.0.0
+numpy>=1.23.0
+pandas>=1.5.0
+
+# NLP & LLMs
+transformers>=4.36.0
+torch>=2.0.0
+sentence-transformers>=2.2.2
+
+# RAG & Orchestration
+langchain>=0.1.0
+langchain-community>=0.0.20
+
+# Vector Database
+faiss-cpu>=1.7.4
+
+# Document Processing
+pypdf>=3.17.0
+tqdm>=4.65.0
+
+# Notebook Environment
+jupyter>=1.0.0
+ipykernel>=6.25.0
