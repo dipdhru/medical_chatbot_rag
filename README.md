@@ -58,6 +58,6 @@ This project addresses that problem by implementing a **RAG architecture**, wher
 ## 📦 Installation
 
 ```bash
-git clone https://github.com/your-username/your-repo-name.git
-cd your-repo-name
+git clone https://github.com/dipdhru/medical_chatbot_rag.git
+cd medical_chatbot_rag
 pip install -r requirements.txt
