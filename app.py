@@ -35,7 +35,7 @@ def load_pipeline():
     model = SentenceTransformer(EMBED_MODEL_NAME)
 
     # 2. Dataset
-    df = pd.read_csv(DATA_PATH)
+    df = pd.read_csv(DATA_PATH, encoding="cp1252")
     df = df.copy()
     df["answer"] = (
         df["answer"]
