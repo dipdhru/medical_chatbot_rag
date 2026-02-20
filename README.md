@@ -66,7 +66,7 @@ The app expects `MedQuAD_combined.csv` in the project root:
 python3 -c "
 import pandas as pd
 df = pd.read_excel('Data Set/MedQuAD_combined.xlsx')
-df.to_csv('MedQuAD_combined.csv', index=False)
+df.to_csv('MedQuAD_combined.csv', index=False, encoding='utf-8')
 print(f'Saved {len(df):,} rows')
 "
 ```
