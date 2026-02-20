@@ -29,7 +29,7 @@ Large Language Models often hallucinate medical information. This project addres
 | Embeddings | `intfloat/e5-base` (Sentence Transformers) |
 | Vector DB | FAISS |
 | Orchestration | LangChain |
-| Dataset | MedQuAD (Excel → CSV) |
+| Dataset | MedQuAD (Excel) |
 | Web UI | Streamlit |
 | Language | Python 3.10+ |
 
@@ -58,24 +58,39 @@ ollama serve                  # start the Ollama server (keep running)
 ollama pull mistral           # download Mistral (~4 GB)
 ```
 
-### 4. Convert the dataset to CSV
-
-The app expects `MedQuAD_combined.csv` in the project root:
-
-```bash
-python3 -c "
-import pandas as pd
-df = pd.read_excel('Data Set/MedQuAD_combined.xlsx')
-df.to_csv('MedQuAD_combined.csv', index=False, encoding='utf-8')
-print(f'Saved {len(df):,} rows')
-"
-```
-
 ---
 
 ## Running the App
 
 ```bash
-git clone https://github.com/dipdhru/medical_chatbot_rag.git
-cd medical_chatbot_rag
-pip install -r requirements.txt
+streamlit run app.py
+```
+
+Then open **http://localhost:8501** in your browser.
+
+> **First launch:** embeddings for all 16k records are computed and saved to `embeddings_cache.npy`. This takes a few minutes. Subsequent launches are instant.
+
+---
+
+## Project Structure
+
+```
+medical_chatbot_rag/
+├── app.py                    # Streamlit chat UI
+├── RAG_llama.ipynb           # Experimental notebook
+├── requirements.txt          # Python dependencies
+├── Data Set/
+│   └── MedQuAD_combined.xlsx # Source dataset (16,407 Q&A pairs)
+└── embeddings_cache.npy      # Generated — created on first app launch
+```
+
+---
+
+## How It Works
+
+1. **Query** — user submits a medical question
+2. **Embed** — query is encoded with `intfloat/e5-base`
+3. **Retrieve** — FAISS finds the top-k most similar Q&A pairs by cosine similarity
+4. **Filter** — results below the similarity threshold are discarded
+5. **Generate** — Mistral produces an answer grounded in the retrieved context
+6. **Cite** — the primary source URL is appended to the answer
