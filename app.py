@@ -15,7 +15,7 @@ from langchain_ollama import ChatOllama
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-DATA_PATH = "MedQuAD_combined.csv"
+DATA_PATH = "Data Set/MedQuAD_combined.xlsx"
 EMBEDDINGS_CACHE = "embeddings_cache.npy"
 EMBED_MODEL_NAME = "intfloat/e5-base"
 OLLAMA_MODEL = "mistral:latest"
@@ -35,7 +35,7 @@ def load_pipeline():
     model = SentenceTransformer(EMBED_MODEL_NAME)
 
     # 2. Dataset
-    df = pd.read_csv(DATA_PATH, encoding="latin-1")
+    df = pd.read_excel(DATA_PATH)
     df = df.copy()
     df["answer"] = (
         df["answer"]
