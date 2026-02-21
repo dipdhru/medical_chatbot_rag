@@ -1,6 +1,6 @@
 """
 Medical RAG Chatbot — Streamlit UI
-Powered by: MedQuAD (16,407 Q&A pairs) · intfloat/e5-base · Mistral via Ollama
+Powered by: MedQuAD · intfloat/e5-base · Mistral via Ollama
 """
 
 import os
@@ -15,7 +15,7 @@ from langchain_ollama import ChatOllama
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-DATA_PATH = "Data Set/MedQuAD_combined.xlsx"
+DATA_PATH = "MedQuAD_combined.csv"
 EMBEDDINGS_CACHE = "embeddings_cache.npy"
 EMBED_MODEL_NAME = "intfloat/e5-base"
 OLLAMA_MODEL = "mistral:latest"
@@ -35,7 +35,7 @@ def load_pipeline():
     model = SentenceTransformer(EMBED_MODEL_NAME)
 
     # 2. Dataset
-    df = pd.read_excel(DATA_PATH)
+    df = pd.read_csv(DATA_PATH)
     df = df.copy()
     df["answer"] = (
         df["answer"]
@@ -194,7 +194,7 @@ st.set_page_config(
 
 st.title("🏥 Medical RAG Chatbot")
 st.caption(
-    "Powered by **MedQuAD** (16,407 Q&A pairs) · "
+    "Powered by **MedQuAD** · "
     "**intfloat/e5-base** embeddings · **Mistral** via Ollama"
 )
 
@@ -231,7 +231,7 @@ with st.sidebar:
 # ── Load pipeline ──────────────────────────────────────────────────────────
 with st.spinner(
     "Loading model & building index… "
-    "(first run computes embeddings for 16k records — this may take a few minutes)"
+    "(first run computes embeddings — this may take a few minutes)"
 ):
     model, df, embeddings, index = load_pipeline()
     llm = load_llm()
