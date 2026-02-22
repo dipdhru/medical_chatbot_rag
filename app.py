@@ -53,17 +53,22 @@ def load_pipeline():
     )
 
     # 3. Embeddings — load from cache or compute and save
-    if os.path.exists(EMBEDDINGS_CACHE):
+    n_rows = len(df)
+    cache_valid = (
+        os.path.exists(EMBEDDINGS_CACHE)
+        and np.load(EMBEDDINGS_CACHE, mmap_mode="r").shape[0] == n_rows
+    )
+    if cache_valid:
         embeddings = np.load(EMBEDDINGS_CACHE)
     else:
         texts = df["text"].tolist()
-        batch_size = 16
-        batches = []
-        for i in range(0, len(texts), batch_size):
-            batch = texts[i : i + batch_size]
-            emb = model.encode(batch, convert_to_numpy=True, normalize_embeddings=True)
-            batches.append(emb)
-        embeddings = np.vstack(batches).astype("float32")
+        embeddings = model.encode(
+            texts,
+            batch_size=128,
+            convert_to_numpy=True,
+            normalize_embeddings=True,
+            show_progress_bar=False,
+        ).astype("float32")
         np.save(EMBEDDINGS_CACHE, embeddings)
 
     # 4. FAISS index (inner-product on normalised vectors == cosine similarity)
