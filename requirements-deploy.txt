@@ -1,0 +1,11 @@
+# Runtime-only dependencies for deployment
+# (strips out evaluation/notebook packages to keep the Docker image lean)
+
+python-dotenv>=1.0.0
+numpy>=1.23.0
+pandas>=1.5.0
+scikit-learn>=1.3.0
+sentence-transformers>=2.2.2
+faiss-cpu>=1.7.4
+langchain-groq>=0.1.0
+chainlit>=2.0.0
