@@ -30,7 +30,7 @@ ragas>=0.1.0
 datasets>=2.14.0
 
 # Web UI
-streamlit>=1.35.0
+chainlit>=2.0.0
 
 # Notebook Environment
 jupyter>=1.0.0
