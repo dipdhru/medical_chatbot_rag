@@ -1,3 +1,11 @@
+---
+title: Medical RAG Chatbot
+emoji: 🏢
+colorFrom: blue
+colorTo: green
+sdk: docker
+pinned: false
+---
 # Medical RAG Chatbot
 
 An **end-to-end Retrieval-Augmented Generation (RAG) chatbot** for medical question answering, powered by the **MedQuAD** dataset (16,407 Q&A pairs), **Mistral** via Ollama, and a **Streamlit** web UI.
