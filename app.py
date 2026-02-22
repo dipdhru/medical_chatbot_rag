@@ -10,7 +10,7 @@ import numpy as np
 import faiss
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
-from langchain_ollama import ChatOllama
+from langchain_groq import ChatGroq
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -18,8 +18,7 @@ from langchain_ollama import ChatOllama
 DATA_PATH = "MedQuAD_combined.csv"
 EMBEDDINGS_CACHE = "embeddings_cache.npy"
 EMBED_MODEL_NAME = "intfloat/e5-base"
-OLLAMA_MODEL = "mistral:latest"
-OLLAMA_BASE_URL = "http://127.0.0.1:11434"
+GROQ_MODEL = "llama-3.1-8b-instant"   # free-tier Groq model
 DEFAULT_K = 3
 DEFAULT_THRESHOLD = 0.50
 
@@ -81,16 +80,20 @@ def load_pipeline():
 
 @st.cache_resource(show_spinner=False)
 def load_llm():
-    """Initialise the local Ollama LLM client; returns None if unreachable."""
-    import urllib.request
+    """Initialise the Groq LLM client; returns None if API key is missing."""
+    api_key = (
+        st.secrets.get("GROQ_API_KEY", None)
+        if hasattr(st, "secrets")
+        else None
+    ) or os.environ.get("GROQ_API_KEY")
+
+    if not api_key:
+        return None
+
     try:
-        urllib.request.urlopen(OLLAMA_BASE_URL, timeout=3)
-    except Exception:
-        return None  # Ollama not running — app will use fallback answers
-    try:
-        return ChatOllama(
-            model=OLLAMA_MODEL,
-            base_url=OLLAMA_BASE_URL,
+        return ChatGroq(
+            model=GROQ_MODEL,
+            api_key=api_key,
             temperature=0.0,
         )
     except Exception:
@@ -215,7 +218,7 @@ st.set_page_config(
 st.title("🏥 Medical RAG Chatbot")
 st.caption(
     "Powered by **MedQuAD** · "
-    "**intfloat/e5-base** embeddings · **Mistral** via Ollama"
+    "**intfloat/e5-base** embeddings · **Llama 3.1** via Groq"
 )
 
 # ── Sidebar ────────────────────────────────────────────────────────────────
@@ -243,8 +246,8 @@ with st.sidebar:
     st.divider()
     st.info(
         "**Requirements**\n"
-        "- Ollama running locally\n"
-        "- `ollama pull mistral`\n"
+        "- `GROQ_API_KEY` in secrets or env\n"
+        "- Free key at console.groq.com\n"
         "- `MedQuAD_combined.csv` in the same directory"
     )
 
@@ -258,9 +261,10 @@ with st.spinner(
 
 if llm is None:
     st.warning(
-        "Ollama LLM not reachable. "
-        "Start Ollama (`ollama serve`) and pull the model (`ollama pull mistral`) "
-        "before asking questions."
+        "Groq API key not found. "
+        "Add **GROQ_API_KEY** to your Streamlit secrets (`.streamlit/secrets.toml`) "
+        "or as an environment variable. Get a free key at https://console.groq.com. "
+        "Answers will fall back to the best-matched knowledge base entry."
     )
 
 st.success(f"Ready — **{len(df):,}** medical Q&A pairs indexed across **{df['folder_name'].nunique()}** source categories.")
