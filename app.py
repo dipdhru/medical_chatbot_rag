@@ -10,7 +10,7 @@ import numpy as np
 import faiss
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
-from langchain_ollama import ChatOllama
+from langchain_groq import ChatGroq
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -18,8 +18,7 @@ from langchain_ollama import ChatOllama
 DATA_PATH = "MedQuAD_combined.csv"
 EMBEDDINGS_CACHE = "embeddings_cache.npy"
 EMBED_MODEL_NAME = "intfloat/e5-base"
-OLLAMA_MODEL = "mistral:latest"
-OLLAMA_BASE_URL = "http://localhost:11434"
+GROQ_MODEL = "llama-3.1-8b-instant"   # free-tier Groq model
 DEFAULT_K = 3
 DEFAULT_THRESHOLD = 0.50
 
@@ -81,11 +80,20 @@ def load_pipeline():
 
 @st.cache_resource(show_spinner=False)
 def load_llm():
-    """Initialise the local Ollama LLM client."""
+    """Initialise the Groq LLM client; returns None if API key is missing."""
+    api_key = (
+        st.secrets.get("GROQ_API_KEY", None)
+        if hasattr(st, "secrets")
+        else None
+    ) or os.environ.get("GROQ_API_KEY")
+
+    if not api_key:
+        return None
+
     try:
-        return ChatOllama(
-            model=OLLAMA_MODEL,
-            base_url=OLLAMA_BASE_URL,
+        return ChatGroq(
+            model=GROQ_MODEL,
+            api_key=api_key,
             temperature=0.0,
         )
     except Exception:
@@ -151,12 +159,21 @@ REJECTION_PHRASES = [
 ]
 
 
+def _fallback_answer(retrieved_docs: list) -> str:
+    """Return the top retrieved answer when the LLM is unavailable."""
+    top = retrieved_docs[0]
+    ans = top["answer"]
+    source_url = top.get("url", "")
+    result = f"**{top['focus']}**\n\n{ans}"
+    if source_url.startswith("http"):
+        result += f"\n\n**Source:** {source_url}"
+    result += "\n\n*Note: AI synthesis unavailable — showing best-matched knowledge base entry.*"
+    return result
+
+
 def generate_answer(query: str, retrieved_docs: list, llm) -> str:
     if llm is None:
-        return (
-            "Ollama LLM is not reachable. "
-            "Make sure Ollama is running and `mistral:latest` is pulled."
-        )
+        return _fallback_answer(retrieved_docs)
 
     prompt = build_prompt(query, retrieved_docs)
     try:
@@ -166,7 +183,7 @@ def generate_answer(query: str, retrieved_docs: list, llm) -> str:
         ans = ans.strip()
 
         if not ans:
-            return "I could not generate an answer. Please try rephrasing your question."
+            return _fallback_answer(retrieved_docs)
 
         for phrase in REJECTION_PHRASES:
             if phrase in ans.lower():
@@ -183,8 +200,9 @@ def generate_answer(query: str, retrieved_docs: list, llm) -> str:
 
         return ans
 
-    except Exception as exc:
-        return f"An error occurred during generation: {exc}"
+    except Exception:
+        # LLM call failed (e.g. Ollama not running) — fall back to retrieved doc
+        return _fallback_answer(retrieved_docs)
 
 
 # ---------------------------------------------------------------------------
@@ -200,7 +218,7 @@ st.set_page_config(
 st.title("🏥 Medical RAG Chatbot")
 st.caption(
     "Powered by **MedQuAD** · "
-    "**intfloat/e5-base** embeddings · **Mistral** via Ollama"
+    "**intfloat/e5-base** embeddings · **Llama 3.1** via Groq"
 )
 
 # ── Sidebar ────────────────────────────────────────────────────────────────
@@ -228,8 +246,8 @@ with st.sidebar:
     st.divider()
     st.info(
         "**Requirements**\n"
-        "- Ollama running locally\n"
-        "- `ollama pull mistral`\n"
+        "- `GROQ_API_KEY` in secrets or env\n"
+        "- Free key at console.groq.com\n"
         "- `MedQuAD_combined.csv` in the same directory"
     )
 
@@ -243,9 +261,10 @@ with st.spinner(
 
 if llm is None:
     st.warning(
-        "Ollama LLM not reachable. "
-        "Start Ollama (`ollama serve`) and pull the model (`ollama pull mistral`) "
-        "before asking questions."
+        "Groq API key not found. "
+        "Add **GROQ_API_KEY** to your Streamlit secrets (`.streamlit/secrets.toml`) "
+        "or as an environment variable. Get a free key at https://console.groq.com. "
+        "Answers will fall back to the best-matched knowledge base entry."
     )
 
 st.success(f"Ready — **{len(df):,}** medical Q&A pairs indexed across **{df['folder_name'].nunique()}** source categories.")
