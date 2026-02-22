@@ -19,7 +19,7 @@ DATA_PATH = "MedQuAD_combined.csv"
 EMBEDDINGS_CACHE = "embeddings_cache.npy"
 EMBED_MODEL_NAME = "intfloat/e5-base"
 OLLAMA_MODEL = "mistral:latest"
-OLLAMA_BASE_URL = "http://localhost:11434"
+OLLAMA_BASE_URL = "http://127.0.0.1:11434"
 DEFAULT_K = 3
 DEFAULT_THRESHOLD = 0.50
 
@@ -81,7 +81,12 @@ def load_pipeline():
 
 @st.cache_resource(show_spinner=False)
 def load_llm():
-    """Initialise the local Ollama LLM client."""
+    """Initialise the local Ollama LLM client; returns None if unreachable."""
+    import urllib.request
+    try:
+        urllib.request.urlopen(OLLAMA_BASE_URL, timeout=3)
+    except Exception:
+        return None  # Ollama not running — app will use fallback answers
     try:
         return ChatOllama(
             model=OLLAMA_MODEL,
@@ -151,12 +156,21 @@ REJECTION_PHRASES = [
 ]
 
 
+def _fallback_answer(retrieved_docs: list) -> str:
+    """Return the top retrieved answer when the LLM is unavailable."""
+    top = retrieved_docs[0]
+    ans = top["answer"]
+    source_url = top.get("url", "")
+    result = f"**{top['focus']}**\n\n{ans}"
+    if source_url.startswith("http"):
+        result += f"\n\n**Source:** {source_url}"
+    result += "\n\n*Note: AI synthesis unavailable — showing best-matched knowledge base entry.*"
+    return result
+
+
 def generate_answer(query: str, retrieved_docs: list, llm) -> str:
     if llm is None:
-        return (
-            "Ollama LLM is not reachable. "
-            "Make sure Ollama is running and `mistral:latest` is pulled."
-        )
+        return _fallback_answer(retrieved_docs)
 
     prompt = build_prompt(query, retrieved_docs)
     try:
@@ -166,7 +180,7 @@ def generate_answer(query: str, retrieved_docs: list, llm) -> str:
         ans = ans.strip()
 
         if not ans:
-            return "I could not generate an answer. Please try rephrasing your question."
+            return _fallback_answer(retrieved_docs)
 
         for phrase in REJECTION_PHRASES:
             if phrase in ans.lower():
@@ -183,8 +197,9 @@ def generate_answer(query: str, retrieved_docs: list, llm) -> str:
 
         return ans
 
-    except Exception as exc:
-        return f"An error occurred during generation: {exc}"
+    except Exception:
+        # LLM call failed (e.g. Ollama not running) — fall back to retrieved doc
+        return _fallback_answer(retrieved_docs)
 
 
 # ---------------------------------------------------------------------------
