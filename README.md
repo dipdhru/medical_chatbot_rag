@@ -1,9 +1,10 @@
 ---
-title: Medical ChatBot
-sdk: docker
-emoji: 🏢
+title: Medical RAG Chatbot
+sdk: streamlit
+emoji: 🏥
 colorFrom: blue
 colorTo: green
+pinned: false
 ---
 # Medical RAG Chatbot
 
