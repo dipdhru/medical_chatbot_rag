@@ -55,10 +55,10 @@ def load_pipeline():
     n_rows = len(df)
     cache_valid = (
         os.path.exists(EMBEDDINGS_CACHE)
-        and np.load(EMBEDDINGS_CACHE, mmap_mode="r").shape[0] == n_rows
+        and np.load(EMBEDDINGS_CACHE, allow_pickle=True, mmap_mode="r").shape[0] == n_rows
     )
     if cache_valid:
-        embeddings = np.load(EMBEDDINGS_CACHE)
+        embeddings = np.load(EMBEDDINGS_CACHE, allow_pickle=True)
     else:
         texts = df["text"].tolist()
         embeddings = model.encode(
