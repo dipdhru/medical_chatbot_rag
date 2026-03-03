@@ -1,4 +1,28 @@
+# Secrets
+.env
 .streamlit/secrets.toml
+
+# Python
 __pycache__/
 *.pyc
-.env
+*.pyo
+.venv/
+venv/
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Chainlit (removed from project)
+.chainlit/
+app_chainlit.py
+chainlit.md
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Claude Code
+.claude/
