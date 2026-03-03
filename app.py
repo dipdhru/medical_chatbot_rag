@@ -53,12 +53,15 @@ def load_pipeline():
 
     # 3. Embeddings — load from cache or compute and save
     n_rows = len(df)
-    cache_valid = (
-        os.path.exists(EMBEDDINGS_CACHE)
-        and np.load(EMBEDDINGS_CACHE, allow_pickle=True, mmap_mode="r").shape[0] == n_rows
-    )
+    try:
+        cached = np.load(EMBEDDINGS_CACHE, allow_pickle=True)
+        cache_valid = cached.shape[0] == n_rows
+    except Exception:
+        cache_valid = False
+        cached = None
+
     if cache_valid:
-        embeddings = np.load(EMBEDDINGS_CACHE, allow_pickle=True)
+        embeddings = cached
     else:
         texts = df["text"].tolist()
         embeddings = model.encode(
