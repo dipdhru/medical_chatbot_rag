@@ -117,18 +117,25 @@ def retrieve(query: str, model, df, embeddings, index, k: int, threshold: float)
 
     results = []
     for rank, idx in enumerate(top_idx, start=1):
+        url = str(df.iloc[idx]["url"]) if pd.notna(df.iloc[idx]["url"]) else ""
         results.append(
             {
                 "rank": rank,
                 "score": float(sims[idx]),
                 "focus": df.iloc[idx]["focus"],
                 "question": df.iloc[idx]["question"],
-                "url": df.iloc[idx]["url"],
+                "url": url,
                 "answer": df.iloc[idx]["answer"].strip(),
                 "text": df.iloc[idx]["text"],
             }
         )
-    return results, best_score
+
+    # Only keep results that have a valid source URL
+    sourced = [r for r in results if r["url"].startswith("http")]
+    if not sourced:
+        return None, best_score
+
+    return sourced, best_score
 
 
 def build_prompt(query: str, retrieved_docs: list) -> str:
@@ -163,10 +170,8 @@ def _fallback_answer(retrieved_docs: list) -> str:
     """Return the top retrieved answer when the LLM is unavailable."""
     top = retrieved_docs[0]
     ans = top["answer"]
-    source_url = str(top.get("url", ""))
     result = f"**{top['focus']}**\n\n{ans}"
-    if source_url.startswith("http"):
-        result += f"\n\n**Source:** {source_url}"
+    result += f"\n\n**Source:** {top['url']}"
     result += "\n\n*Note: AI synthesis unavailable — showing best-matched knowledge base entry.*"
     return result
 
@@ -193,10 +198,8 @@ def generate_answer(query: str, retrieved_docs: list, llm) -> str:
                     "the MedQuAD knowledge base."
                 )
 
-        # Append primary source URL
-        source_url = str(retrieved_docs[0].get("url", "")) if retrieved_docs else ""
-        if source_url.startswith("http"):
-            ans += f"\n\n**Source:** {source_url}"
+        # Append primary source URL (always present — filtered at retrieval)
+        ans += f"\n\n**Source:** {retrieved_docs[0]['url']}"
 
         return ans
 
