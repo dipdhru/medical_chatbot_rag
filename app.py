@@ -163,7 +163,7 @@ def _fallback_answer(retrieved_docs: list) -> str:
     """Return the top retrieved answer when the LLM is unavailable."""
     top = retrieved_docs[0]
     ans = top["answer"]
-    source_url = top.get("url", "")
+    source_url = str(top.get("url", ""))
     result = f"**{top['focus']}**\n\n{ans}"
     if source_url.startswith("http"):
         result += f"\n\n**Source:** {source_url}"
@@ -194,7 +194,7 @@ def generate_answer(query: str, retrieved_docs: list, llm) -> str:
                 )
 
         # Append primary source URL
-        source_url = retrieved_docs[0].get("url", "") if retrieved_docs else ""
+        source_url = str(retrieved_docs[0].get("url", "")) if retrieved_docs else ""
         if source_url.startswith("http"):
             ans += f"\n\n**Source:** {source_url}"
 
