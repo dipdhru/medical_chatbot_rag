@@ -200,8 +200,7 @@ def generate_answer(query: str, retrieved_docs: list, llm) -> str:
                 return (
                     "The provided context does not contain information relevant "
                     "to your question. Please ask a medical question covered by "
-                    "the MedQuAD knowledge base.\n\n"
-                    f"**Source checked:** {retrieved_docs[0]['url']}"
+                    "the MedQuAD knowledge base."
                 )
 
         # Append primary source URL (always present — filtered at retrieval)
