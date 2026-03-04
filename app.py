@@ -166,6 +166,8 @@ REJECTION_PHRASES = [
     "no information provided",
     "as a large language model",
     "outside the focus area",
+    "provided context does not contain information"
+
 ]
 
 
@@ -198,7 +200,8 @@ def generate_answer(query: str, retrieved_docs: list, llm) -> str:
                 return (
                     "The provided context does not contain information relevant "
                     "to your question. Please ask a medical question covered by "
-                    "the MedQuAD knowledge base."
+                    "the MedQuAD knowledge base.\n\n"
+                    f"**Source checked:** {retrieved_docs[0]['url']}"
                 )
 
         # Append primary source URL (always present — filtered at retrieval)
