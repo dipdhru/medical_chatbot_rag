@@ -1,6 +1,6 @@
 """Medical RAG Chatbot: Streamlit UI.
 
-Powered by MedQuAD, intfloat/e5-base embeddings and Llama 3.1 via Groq.
+Powered by MedQuAD, intfloat/e5-base embeddings and GPT-OSS 20B via Groq.
 """
 
 import os
@@ -80,7 +80,7 @@ st.set_page_config(
 st.title("🏥 Medical RAG Chatbot")
 st.caption(
     "Powered by **MedQuAD** · "
-    "**intfloat/e5-base** embeddings · **Llama 3.1** via Groq"
+    "**intfloat/e5-base** embeddings · **GPT-OSS 20B** via Groq"
 )
 
 st.warning(

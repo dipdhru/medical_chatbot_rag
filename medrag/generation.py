@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 REJECTION_PHRASES = [
     "cannot answer that",
@@ -55,7 +58,8 @@ def generate_answer(query: str, retrieved_docs: list[dict], llm: Any) -> str:
         return fallback_answer(retrieved_docs)
     try:
         response = llm.invoke(build_prompt(query, retrieved_docs))
-    except Exception:  # network, quota or auth failure: still show the sourced passage
+    except Exception:  # network, quota, auth or retired model: still show the sourced passage
+        logger.exception("LLM call failed; falling back to the retrieved passage")
         return fallback_answer(retrieved_docs)
 
     answer = str(getattr(response, "content", response)).strip()
