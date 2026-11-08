@@ -48,7 +48,7 @@ Measured with [`scripts/evaluate_retrieval.py`](scripts/evaluate_retrieval.py) o
 ## How it works
 
 ```
-Question → embed (e5-base) → FAISS top-k → similarity threshold → Llama 3.1 8B via Groq → answer + sources
+Question → embed (e5-base) → FAISS top-k → similarity threshold → GPT-OSS 20B via Groq → answer + sources
 ```
 
 | Component | Choice |
@@ -56,7 +56,7 @@ Question → embed (e5-base) → FAISS top-k → similarity threshold → Llama 
 | Knowledge base | MedQuAD, 16,407 Q&A pairs from 9 NIH source collections |
 | Embeddings | `intfloat/e5-base` (768 dimensions) |
 | Search | FAISS `IndexFlatIP` on normalised vectors (cosine similarity) |
-| Generation | Llama 3.1 8B via Groq, restricted to the retrieved context |
+| Generation | `openai/gpt-oss-20b` via Groq, restricted to the retrieved context |
 | Interface | Streamlit |
 
 Without an API key, or if the LLM call fails, the app shows the best-matching source passage instead of failing.
