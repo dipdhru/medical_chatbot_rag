@@ -1,0 +1,29 @@
+name: Sync to Hugging Face
+
+# Deploys the live demo, but only from commits that passed CI.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  sync:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+          lfs: true
+      - name: Push to the Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          if [ -z "$HF_TOKEN" ]; then
+            echo "::notice::HF_TOKEN secret is not set, so the Space was not updated."
+            exit 0
+          fi
+          git push "https://dipdhrusingh:${HF_TOKEN}@huggingface.co/spaces/dipdhrusingh/medical-chatbot" HEAD:refs/heads/main

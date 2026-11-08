@@ -73,6 +73,8 @@ export $(cat .env) && streamlit run app.py
 
 The data and embeddings are stored with Git LFS, so run `git lfs install` before cloning.
 
+Commits to `main` that pass CI deploy automatically to the Hugging Face Space.
+
 ## Test and evaluate
 
 ```bash
