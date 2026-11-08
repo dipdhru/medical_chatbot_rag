@@ -26,3 +26,7 @@ chainlit.md
 
 # Claude Code
 .claude/
+
+# Tooling
+.pytest_cache/
+.ruff_cache/

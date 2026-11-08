@@ -9,122 +9,98 @@ pinned: false
 
 # Medical RAG Chatbot
 
-An **end-to-end Retrieval-Augmented Generation (RAG) chatbot** for medical question answering, powered by the **MedQuAD** dataset (16,407 Q&A pairs), **Llama 3.1 8B** via Groq, and a **Streamlit** web UI.
+[![CI](https://github.com/dipdhru/medical_chatbot_rag/actions/workflows/ci.yml/badge.svg)](https://github.com/dipdhru/medical_chatbot_rag/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=flat)
+![License](https://img.shields.io/badge/License-MIT-green?style=flat)
 
-**[Live Demo on Hugging Face Spaces](https://huggingface.co/spaces/dipdhrusingh/medical-chatbot)**
+A retrieval-augmented chatbot that answers health questions from **16,407 MedQuAD Q&A pairs** published by NIH sources, cites where each answer came from, and refuses questions outside its knowledge base.
 
----
+**[Live demo on Hugging Face Spaces](https://huggingface.co/spaces/dipdhrusingh/medical-chatbot)**
 
-## Why RAG?
+> For information only. This is a portfolio project, not medical advice.
 
-Large Language Models frequently hallucinate medical facts. RAG solves this by **grounding every answer in verified source documents** — the LLM can only use information retrieved from a curated medical knowledge base, and every response includes a source citation.
+## Results
 
----
+Measured with [`scripts/evaluate_retrieval.py`](scripts/evaluate_retrieval.py) on a benchmark of 70 lay-language paraphrases and 40 out-of-scope questions. Half calibrates the rejection threshold; the figures below come from the unseen half (35 in-scope, 20 out-of-scope).
 
-## Tech Stack
+| Retrieval (top 3) | TF-IDF baseline | e5-base (this app) |
+|---|---:|---:|
+| Right condition found | 43% | **86%** (95% CI 71–94%) |
+| Right condition and question type found | 9% | **49%** |
 
-| Component | Technology |
-|-----------|-----------|
-| LLM | Llama 3.1 8B (via Groq API) |
-| Embeddings | `intfloat/e5-base` (Sentence Transformers) |
-| Vector Search | FAISS (IndexFlatIP, cosine similarity) |
-| Dataset | MedQuAD — 16,407 medical Q&A pairs |
-| Web UI | Streamlit |
-| Evaluation | ROUGE, BLEU, BERTScore, RAGAS |
-| Deployment | Hugging Face Spaces |
+| Out-of-scope handling | Original threshold (0.50) | Calibrated (0.83) |
+|---|---:|---:|
+| Out-of-scope questions refused | 0 of 20 | **17 of 20** |
+| In-scope questions answered | 35 of 35 | **35 of 35** |
 
----
+**What this shows**
 
-## How It Works
+- Semantic search roughly doubles the hit rate over keywords, because people rarely use the clinical term. "Thick scaly red patches" needs to find psoriasis.
+- The original threshold let everything through: even "fix a broken car engine" scored 0.79, because this model's cosine scores sit in a narrow, high band. A threshold only works if it is calibrated against real out-of-scope queries.
+- Adding the `passage:` prefix recommended for e5 models made no measurable difference on this data (80% against 86%, well within the noise), so the existing embeddings were kept.
 
-```
-User Question
-      |
-      v
- [ Embed ]      intfloat/e5-base (768-dim)
-      |
-      v
- [ Retrieve ]   FAISS top-k + cosine similarity
-      |
-      v
- [ Filter ]     similarity threshold + source URL validation
-      |
-      v
- [ Generate ]   Llama 3.1 8B via Groq (grounded prompt)
-      |
-      v
- [ Cite ]       append verified source URL
-```
+**Limits**
 
----
+- The benchmark is small and was written for this project. It has not been reviewed by clinicians.
+- The separation is narrow: the highest out-of-scope score (0.88) is above the lowest in-scope score (0.84), so some off-topic questions will still get through.
+- These numbers cover retrieval and refusal only. The faithfulness of the generated answers has not been measured.
 
-## Project Structure
+## How it works
 
 ```
-medical_chatbot_rag/
-├── app.py                    # Streamlit web UI (production)
-├── RAG_llama.ipynb           # Full pipeline notebook with evaluation
-├── MedQuAD_combined.csv      # MedQuAD dataset (16,407 Q&A pairs)
-├── embeddings_cache.npy      # Pre-computed embeddings (auto-generated)
-├── requirements.txt          # Python dependencies
-├── README.md                 # This file
-├── .devcontainer/            # VS Code / Codespaces config
-│   └── devcontainer.json
-└── .gitattributes            # Git LFS tracking rules
+Question → embed (e5-base) → FAISS top-k → similarity threshold → Llama 3.1 8B via Groq → answer + sources
 ```
 
----
+| Component | Choice |
+|---|---|
+| Knowledge base | MedQuAD, 16,407 Q&A pairs from 9 NIH source collections |
+| Embeddings | `intfloat/e5-base` (768 dimensions) |
+| Search | FAISS `IndexFlatIP` on normalised vectors (cosine similarity) |
+| Generation | Llama 3.1 8B via Groq, restricted to the retrieved context |
+| Interface | Streamlit |
 
-## Quick Start
+Without an API key, or if the LLM call fails, the app shows the best-matching source passage instead of failing.
 
-### 1. Clone the repo
+## Run it
 
 ```bash
 git clone https://github.com/dipdhru/medical_chatbot_rag.git
 cd medical_chatbot_rag
-```
-
-### 2. Install dependencies
-
-```bash
 pip install -r requirements.txt
+echo "GROQ_API_KEY=your_key_here" > .env   # optional, free at console.groq.com
+export $(cat .env) && streamlit run app.py
 ```
 
-### 3. Set up your Groq API key
+The data and embeddings are stored with Git LFS, so run `git lfs install` before cloning.
 
-Get a free key at [console.groq.com](https://console.groq.com), then:
+## Test and evaluate
 
 ```bash
-echo "GROQ_API_KEY=your_key_here" > .env
+pip install pytest ruff
+pytest                                 # no model download needed
+ruff check .
+python scripts/evaluate_retrieval.py   # rewrites results/retrieval_eval.json
 ```
 
-### 4. Run the app
+## Project structure
 
-```bash
-streamlit run app.py
+```
+├── app.py                  Streamlit interface
+├── medrag/
+│   ├── config.py           model names and defaults
+│   ├── data.py             load MedQuAD, build retrieval text
+│   ├── retrieval.py        FAISS search and out-of-scope threshold
+│   ├── generation.py       grounded prompt, citations, fallback
+│   └── metrics.py          hit rate, MRR, confidence intervals, calibration
+├── evaluation/             benchmark questions
+├── results/                evaluation output
+├── scripts/                evaluation and embedding builds
+├── tests/
+└── RAG_llama.ipynb         original exploration notebook
 ```
 
-Open **http://localhost:8501** in your browser.
+The notebook is kept as a record of the first version. It uses the earlier 0.50 threshold and an 8-question evaluation, and its RAGAS step did not complete, so the figures above supersede it.
 
-> **First launch:** embeddings for all 16k records are computed and cached to `embeddings_cache.npy`. This takes a few minutes. Subsequent launches are instant.
+## Author
 
----
-
-## Features
-
-- **16,407 medical Q&A pairs** from the MedQuAD dataset
-- **Semantic search** with e5-base embeddings + FAISS
-- **Source-grounded answers** — every response includes a verifiable source URL
-- **Out-of-domain rejection** — non-medical queries are filtered by similarity threshold
-- **Configurable settings** — adjust top-k retrieval and similarity threshold via sidebar
-- **Graceful fallback** — works without API key (shows best-matched knowledge base entry)
-
----
-
-## Evaluation Results
-
-See `RAG_llama.ipynb` for the full evaluation pipeline. Metrics include:
-
-- **Retrieval**: Precision@3, Recall@3, MRR@3
-- **Generation**: ROUGE-L, BLEU-4, BERTScore
-- **RAG Quality**: RAGAS (Faithfulness, Answer Relevancy, Context Precision, Context Recall)
+**Dipanshu Singh** · [LinkedIn](https://www.linkedin.com/in/dipanshu-s-b94384174/) · [GitHub](https://github.com/dipdhru)

@@ -1,71 +1,42 @@
-"""
-Medical RAG Chatbot — Streamlit UI
-Powered by: MedQuAD · intfloat/e5-base · Mistral via Ollama
+"""Medical RAG Chatbot: Streamlit UI.
+
+Powered by MedQuAD, intfloat/e5-base embeddings and Llama 3.1 via Groq.
 """
 
 import os
-import streamlit as st
-import pandas as pd
+
 import numpy as np
-import faiss
-from sentence_transformers import SentenceTransformer
-from sklearn.metrics.pairwise import cosine_similarity
+import streamlit as st
 from langchain_groq import ChatGroq
+from sentence_transformers import SentenceTransformer
 
-# ---------------------------------------------------------------------------
-# Configuration
-# ---------------------------------------------------------------------------
-DATA_PATH = "MedQuAD_combined.csv"
-EMBEDDINGS_CACHE = "embeddings_cache.npy"
-EMBED_MODEL_NAME = "intfloat/e5-base"
-GROQ_MODEL = "llama-3.1-8b-instant"   # free-tier Groq model
-DEFAULT_K = 3
-DEFAULT_THRESHOLD = 0.50
+from medrag.config import (
+    DATA_PATH,
+    DEFAULT_K,
+    DEFAULT_THRESHOLD,
+    EMBED_MODEL_NAME,
+    EMBEDDINGS_CACHE,
+    GROQ_MODEL,
+)
+from medrag.data import load_knowledge_base
+from medrag.generation import generate_answer
+from medrag.retrieval import Retriever
 
-# ---------------------------------------------------------------------------
-# Cached resource loaders  (run once per process, cached across reruns)
-# ---------------------------------------------------------------------------
 
 @st.cache_resource(show_spinner=False)
-def load_pipeline():
-    """Load embedding model, data, embeddings (from cache or fresh), and FAISS index."""
-
-    # 1. Embedding model
+def load_pipeline() -> Retriever:
+    """Load the model, knowledge base and embeddings once per process."""
     model = SentenceTransformer(EMBED_MODEL_NAME)
-
-    # 2. Dataset
-    df = pd.read_csv(DATA_PATH)
-    df = df.copy()
-    df["answer"] = (
-        df["answer"]
-        .astype(str)
-        .str.replace("\n", " ", regex=False)
-        .str.replace(r"  +", " ", regex=True)
-        .str.strip()
-    )
-    df["text"] = (
-        "Focus Area: " + df["focus"].fillna("") +
-        " ; Question: " + df["question"].fillna("") +
-        " ; Question Type: " + df["question_qtype"].fillna("") +
-        " ; Source: " + df["url"].fillna("") +
-        " ; Answer: " + df["answer"].fillna("")
-    )
-
-    # 3. Embeddings — load from cache or compute and save
-    n_rows = len(df)
+    documents = load_knowledge_base(DATA_PATH)
     try:
-        cached = np.load(EMBEDDINGS_CACHE, allow_pickle=True)
-        cache_valid = cached.shape[0] == n_rows
-    except Exception:
+        embeddings = np.load(EMBEDDINGS_CACHE, allow_pickle=False)
+        cache_valid = embeddings.shape[0] == len(documents)
+    except (OSError, ValueError):
         cache_valid = False
-        cached = None
 
-    if cache_valid:
-        embeddings = cached
-    else:
-        texts = df["text"].tolist()
+    if not cache_valid:
         embeddings = model.encode(
-            texts,
+            documents["text"].tolist(),
             batch_size=128,
             convert_to_numpy=True,
             normalize_embeddings=True,
@@ -73,144 +44,27 @@ def load_pipeline():
         ).astype("float32")
         np.save(EMBEDDINGS_CACHE, embeddings)
 
-    # 4. FAISS index (inner-product on normalised vectors == cosine similarity)
-    dimension = embeddings.shape[1]
-    index = faiss.IndexFlatIP(dimension)
-    index.add(embeddings)
+    return Retriever(model, documents, embeddings)
 
-    return model, df, embeddings, index
+
+def groq_api_key() -> str | None:
+    try:
+        key = st.secrets.get("GROQ_API_KEY")
+    except Exception:  # Streamlit raises when no secrets file exists
+        key = None
+    return key or os.environ.get("GROQ_API_KEY")
 
 
 @st.cache_resource(show_spinner=False)
 def load_llm():
-    """Initialise the Groq LLM client; returns None if API key is missing."""
-    api_key = (
-        st.secrets.get("GROQ_API_KEY", None)
-        if hasattr(st, "secrets")
-        else None
-    ) or os.environ.get("GROQ_API_KEY")
-
+    """Create the Groq client; returns None if the key is missing or invalid."""
+    api_key = groq_api_key()
     if not api_key:
         return None
-
     try:
-        return ChatGroq(
-            model=GROQ_MODEL,
-            api_key=api_key,
-            temperature=0.0,
-        )
+        return ChatGroq(model=GROQ_MODEL, api_key=api_key, temperature=0.0)
     except Exception:
         return None
-
-
-# ---------------------------------------------------------------------------
-# RAG helpers
-# ---------------------------------------------------------------------------
-
-def retrieve(query: str, model, df, embeddings, index, k: int, threshold: float):
-    query_emb = model.encode(
-        ["query: " + query], convert_to_numpy=True, normalize_embeddings=True
-    )
-    sims = cosine_similarity(query_emb, embeddings)[0]
-    top_idx = sims.argsort()[::-1][:k]
-    best_score = float(sims[top_idx[0]])
-
-    if best_score < threshold:
-        return None, best_score
-
-    results = []
-    for rank, idx in enumerate(top_idx, start=1):
-        url = str(df.iloc[idx]["url"]) if pd.notna(df.iloc[idx]["url"]) else ""
-        results.append(
-            {
-                "rank": rank,
-                "score": float(sims[idx]),
-                "focus": df.iloc[idx]["focus"],
-                "question": df.iloc[idx]["question"],
-                "url": url,
-                "answer": df.iloc[idx]["answer"].strip(),
-                "text": df.iloc[idx]["text"],
-            }
-        )
-
-    # Only keep results that have a valid source URL
-    sourced = [r for r in results if r["url"].startswith("http")]
-    if not sourced:
-        return None, best_score
-
-    return sourced, best_score
-
-
-def build_prompt(query: str, retrieved_docs: list) -> str:
-    context_parts = []
-    for doc in retrieved_docs:
-        context_parts.append(doc.get("text", str(doc)) if isinstance(doc, dict) else str(doc))
-    context_text = "\n\n---\n\n".join(context_parts)
-
-    return f"""You are an expert medical assistant. Answer the user's question based SOLELY \
-on the provided context. If the context does not contain the answer, clearly state that \
-the information is not available in the provided documents.
-
-CONTEXT:
-{context_text}
-
-QUESTION:
-{query}
-
-ANSWER:"""
-
-
-REJECTION_PHRASES = [
-    "cannot answer that",
-    "i don't see any context",
-    "no information provided",
-    "as a large language model",
-    "outside the focus area",
-    "provided context does not contain information"
-
-]
-
-
-def _fallback_answer(retrieved_docs: list) -> str:
-    """Return the top retrieved answer when the LLM is unavailable."""
-    top = retrieved_docs[0]
-    ans = top["answer"]
-    result = f"**{top['focus']}**\n\n{ans}"
-    result += f"\n\n**Source:** {top['url']}"
-    result += "\n\n*Note: AI synthesis unavailable — showing best-matched knowledge base entry.*"
-    return result
-
-
-def generate_answer(query: str, retrieved_docs: list, llm) -> str:
-    if llm is None:
-        return _fallback_answer(retrieved_docs)
-
-    prompt = build_prompt(query, retrieved_docs)
-    try:
-        response = llm.invoke(prompt)
-        # ChatOllama returns an AIMessage; plain Ollama LLM returns a str
-        ans = response.content if hasattr(response, "content") else str(response)
-        ans = ans.strip()
-
-        if not ans:
-            return _fallback_answer(retrieved_docs)
-
-        for phrase in REJECTION_PHRASES:
-            if phrase in ans.lower():
-                return (
-                    "The provided context does not contain information relevant "
-                    "to your question. Please ask a medical question covered by "
-                    "the MedQuAD knowledge base."
-                )
-
-        # Append primary source URL (always present — filtered at retrieval)
-        ans += f"\n\n**Source:** {retrieved_docs[0]['url']}"
-
-        return ans
-
-    except Exception:
-        # LLM call failed (e.g. Ollama not running) — fall back to retrieved doc
-        return _fallback_answer(retrieved_docs)
 
 
 # ---------------------------------------------------------------------------
@@ -229,6 +83,13 @@ st.caption(
     "**intfloat/e5-base** embeddings · **Llama 3.1** via Groq"
 )
 
+st.warning(
+    "For information only. This is a portfolio project, not medical advice. "
+    "For anything about your health, talk to a qualified clinician, and call your local "
+    "emergency number in an emergency.",
+    icon="⚕️",
+)
+
 # ── Sidebar ────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.header("⚙️ Settings")
@@ -241,7 +102,7 @@ with st.sidebar:
         min_value=0.0,
         max_value=1.0,
         value=DEFAULT_THRESHOLD,
-        step=0.05,
+        step=0.01,
         help="Queries below this cosine-similarity score return 'no results found'.",
     )
     show_sources = st.toggle("Show retrieved sources", value=True)
@@ -264,7 +125,8 @@ with st.spinner(
     "Loading model & building index… "
     "(first run computes embeddings — this may take a few minutes)"
 ):
-    model, df, embeddings, index = load_pipeline()
+    retriever = load_pipeline()
+    df = retriever.documents
     llm = load_llm()
 
 if llm is None:
@@ -275,7 +137,10 @@ if llm is None:
         "Answers will fall back to the best-matched knowledge base entry."
     )
 
-st.success(f"Ready — **{len(df):,}** medical Q&A pairs indexed across **{df['folder_name'].nunique()}** source categories.")
+st.success(
+    f"Ready — **{len(df):,}** medical Q&A pairs indexed across "
+    f"**{df['folder_name'].nunique()}** source categories."
+)
 
 # ── Chat history ───────────────────────────────────────────────────────────
 if "messages" not in st.session_state:
@@ -302,9 +167,7 @@ if prompt := st.chat_input("Ask a medical question…"):
 
     with st.chat_message("assistant"):
         with st.spinner("Searching knowledge base…"):
-            results, best_score = retrieve(
-                prompt, model, df, embeddings, index, k=k_docs, threshold=threshold
-            )
+            results, best_score = retriever.retrieve(prompt, k=k_docs, threshold=threshold)
 
         if results is None:
             answer = (
