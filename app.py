@@ -47,12 +47,24 @@ def load_pipeline() -> Retriever:
     return Retriever(model, documents, embeddings)
 
 
-def groq_api_key() -> str | None:
+def groq_api_key() -> tuple[str | None, str]:
+    """Return (key, problem). The problem text never includes secret values."""
     try:
         key = st.secrets.get("GROQ_API_KEY")
-    except Exception:  # Streamlit raises when no secrets file exists
-        key = None
-    return key or os.environ.get("GROQ_API_KEY")
+        names = sorted(st.secrets.keys())
+    except FileNotFoundError:
+        key, names = None, None
+    except Exception as exc:  # e.g. the secrets box is not valid TOML
+        return os.environ.get("GROQ_API_KEY"), (
+            f"Streamlit secrets could not be read ({type(exc).__name__}). "
+            'Check the format is exactly: GROQ_API_KEY = "your_key"'
+        )
+    key = key or os.environ.get("GROQ_API_KEY")
+    if key:
+        return key, ""
+    if names:
+        return None, f"No GROQ_API_KEY in secrets. Secret names found: {', '.join(names)}."
+    return None, "No GROQ_API_KEY found in Streamlit secrets or environment variables."
 
 
 @st.cache_resource(show_spinner=False)
@@ -62,14 +74,14 @@ def make_llm(api_key: str):
 
 
 def load_llm():
-    """Return the Groq client, or None if the key is missing or invalid."""
-    api_key = groq_api_key()
+    """Return (Groq client or None, problem description)."""
+    api_key, problem = groq_api_key()
     if not api_key:
-        return None
+        return None, problem
     try:
-        return make_llm(api_key)
-    except Exception:
-        return None
+        return make_llm(api_key), ""
+    except Exception as exc:
+        return None, f"Could not create the Groq client ({type(exc).__name__})."
 
 
 # ---------------------------------------------------------------------------
@@ -132,14 +144,14 @@ with st.spinner(
 ):
     retriever = load_pipeline()
     df = retriever.documents
-    llm = load_llm()
+    llm, llm_problem = load_llm()
 
 if llm is None:
     st.warning(
-        "Groq API key not found. "
-        "Add **GROQ_API_KEY** to your Streamlit secrets (`.streamlit/secrets.toml`) "
-        "or as an environment variable. Get a free key at https://console.groq.com. "
-        "Answers will fall back to the best-matched knowledge base entry."
+        f"AI answers are off: {llm_problem} "
+        "Add **GROQ_API_KEY** to your Streamlit secrets or as an environment variable "
+        "(free key at https://console.groq.com). "
+        "Meanwhile, answers fall back to the best-matched knowledge base entry."
     )
 
 st.success(
