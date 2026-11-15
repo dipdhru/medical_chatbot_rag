@@ -6,7 +6,7 @@
 
 A retrieval-augmented chatbot that answers health questions from **16,407 MedQuAD Q&A pairs** published by NIH sources, cites where each answer came from, and refuses questions outside its knowledge base.
 
-**[Live demo on Hugging Face Spaces](https://huggingface.co/spaces/dipdhrusingh/medical-chatbot)**
+**[Live demo on Streamlit](https://medicalchatbotrag-dipdhru.streamlit.app)**
 
 > For information only. This is a portfolio project, not medical advice.
 
