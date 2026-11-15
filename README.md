@@ -1,12 +1,3 @@
----
-title: Medical RAG Chatbot
-sdk: streamlit
-emoji: 🏥
-colorFrom: blue
-colorTo: green
-pinned: false
----
-
 # Medical RAG Chatbot
 
 [![CI](https://github.com/dipdhru/medical_chatbot_rag/actions/workflows/ci.yml/badge.svg)](https://github.com/dipdhru/medical_chatbot_rag/actions/workflows/ci.yml)
@@ -71,9 +62,11 @@ echo "GROQ_API_KEY=your_key_here" > .env   # optional, free at console.groq.com
 export $(cat .env) && streamlit run app.py
 ```
 
-The data and embeddings are stored with Git LFS, so run `git lfs install` before cloning.
+### Deploy on Streamlit Community Cloud
 
-Commits to `main` that pass CI deploy automatically to the Hugging Face Space.
+At [share.streamlit.io](https://share.streamlit.io), create an app from this repository with main file
+`app.py` and Python 3.12, then add `GROQ_API_KEY = "..."` under **Settings → Secrets**.
+Streamlit redeploys automatically on every push to `main`.
 
 ## Test and evaluate
 
