@@ -56,13 +56,18 @@ def groq_api_key() -> str | None:
 
 
 @st.cache_resource(show_spinner=False)
+def make_llm(api_key: str):
+    """Create the Groq client once per key, so a newly added secret takes effect."""
+    return ChatGroq(model=GROQ_MODEL, api_key=api_key, temperature=0.0)
+
+
 def load_llm():
-    """Create the Groq client; returns None if the key is missing or invalid."""
+    """Return the Groq client, or None if the key is missing or invalid."""
     api_key = groq_api_key()
     if not api_key:
         return None
     try:
-        return ChatGroq(model=GROQ_MODEL, api_key=api_key, temperature=0.0)
+        return make_llm(api_key)
     except Exception:
         return None
 
