@@ -24,7 +24,7 @@ chainlit.md
 # Jupyter
 .ipynb_checkpoints/
 
-# Claude Code
+# Local tool settings
 .claude/
 
 # Tooling
